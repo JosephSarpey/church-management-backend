@@ -1,0 +1,224 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ADMIN
+  PASTOR
+  STAFF
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+model User {
+  id                  String         @id @default(uuid())
+  clerkId             String?        @unique
+  email               String         @unique
+  password            String?        // Made optional for Clerk users
+  firstName           String
+  lastName            String
+  role                UserRole       @default(ADMIN)
+  phone               String?
+  profileImage        String?
+  isActive            Boolean        @default(true)
+  lastLogin           DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  refreshToken        String?        // Can be removed if not using refresh tokens with Clerk
+  createdEvents       Event[]        @relation("EventCreator")
+  managedEvents       EventManager[]
+  attendances         Attendance[]   @relation("UserAttendances")
+  recordedAttendances Attendance[]   @relation("RecordedAttendances")
+  tithes              Tithe[]
+  notifications       Notification[]
+  Group               Group[]
+  createdMembers      Member[]       @relation("MemberCreator")
+
+  @@index([email])
+  @@index([clerkId])
+}
+
+model Member {
+  id               String         @id @default(uuid())
+  memberNumber     String         @unique @default("0001")
+  firstName        String
+  lastName         String
+  email            String?        @unique
+  phone            String?
+  dateOfBirth      DateTime?
+  gender           Gender?
+  maritalStatus    MaritalStatus?
+  membershipStatus MembershipStatus @default(ACTIVE)
+  address          String?
+  city             String?
+  state            String?
+  country          String?
+  postalCode       String?
+  joinDate         DateTime       @default(now())
+  baptized         Boolean        @default(false)
+  baptismDate      DateTime?
+  occupation       String?
+  emergencyContact String?
+  emergencyPhone   String?
+  familyMembers    FamilyMember[]
+  groups           GroupMember[]
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  tithes           Tithe[]
+  Attendance       Attendance[]
+  createdById      String?
+  createdBy        User?          @relation("MemberCreator", fields: [createdById], references: [id])
+}
+
+model FamilyMember {
+  id           String    @id @default(uuid())
+  memberId     String 
+  member       Member    @relation(fields: [memberId], references: [id])
+  name         String
+  relationship String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Group {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  leaderId    String
+  leader      User          @relation(fields: [leaderId], references: [id])
+  members     GroupMember[]
+  events      Event[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model GroupMember {
+  id       String    @id @default(uuid())
+  groupId  String
+  group    Group     @relation(fields: [groupId], references: [id])
+  memberId String
+  member   Member    @relation(fields: [memberId], references: [id])
+  role     String    @default("MEMBER")
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+  isActive Boolean   @default(true)
+}
+
+model Event {
+  id               String         @id @default(uuid())
+  title            String
+  description      String?
+  startTime        DateTime
+  endTime          DateTime
+  location         String?
+  type             String
+  isRecurring      Boolean        @default(false)
+  recurringPattern String? // e.g., "WEEKLY", "MONTHLY"
+  groupId          String?
+  group            Group?         @relation(fields: [groupId], references: [id])
+  creatorId        String
+  creator          User           @relation("EventCreator", fields: [creatorId], references: [id])
+  managers         EventManager[]
+  attendances      Attendance[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model EventManager {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  canEdit   Boolean  @default(false)
+  canDelete Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Attendance {
+  id           String    @id @default(uuid())
+  eventId      String
+  event        Event     @relation(fields: [eventId], references: [id])
+  memberId     String
+  member       Member    @relation(fields: [memberId], references: [id])
+  checkIn      DateTime  @default(now())
+  checkOut     DateTime?
+  notes        String?
+  recordedById String
+  recordedBy   User      @relation("RecordedAttendances", fields: [recordedById], references: [id])
+  user         User?     @relation("UserAttendances", fields: [userId], references: [id])
+  userId       String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Tithe {
+  id            String   @id @default(uuid())
+  memberId      String
+  member        Member   @relation(fields: [memberId], references: [id])
+  amount        Float
+  paymentDate   DateTime @default(now())
+  paymentMethod String
+  reference     String?
+  category      String
+  recordedById  String
+  recordedBy    User     @relation(fields: [recordedById], references: [id])
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ChurchSettings {
+  id                 String    @id @default(uuid())
+  churchName         String    @default("Zion Chapel")
+  pastorName         String?
+  email              String?
+  phone              String?
+  address            String?
+  emailNotifications Boolean   @default(true)
+  maintenanceMode    Boolean   @default(false)
+  timezone           String    @default("UTC")
+  currency           String    @default("GHS")
+  dateFormat         String    @default("MM/dd/yyyy")
+  timeFormat         String    @default("hh:mm a")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  isRead    Boolean   @default(false)
+  link      String?
+  type      String // e.g., 'SYSTEM', 'EVENT', 'PAYMENT'
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+}
