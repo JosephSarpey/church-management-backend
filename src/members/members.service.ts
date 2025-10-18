@@ -179,4 +179,30 @@ export class MembersService {
     where: { id }
   });
 }
+
+  /**
+   * Get total count of members and previous period count for percentage change
+   * @returns Object containing current count and previous period count
+   */
+  async countMembers(): Promise<{ count: number; previousCount: number }> {
+    // Get current count
+    const count = await this.prisma.member.count();
+    
+    // Get count from 30 days ago for percentage change calculation
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const previousCount = await this.prisma.member.count({
+      where: {
+        createdAt: {
+          lte: thirtyDaysAgo
+        }
+      }
+    });
+    
+    return { 
+      count,
+      previousCount
+    };
+  }
 }

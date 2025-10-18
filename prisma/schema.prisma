@@ -33,6 +33,16 @@ enum MembershipStatus {
   PENDING
 }
 
+enum ServiceType {
+  SUNDAY_SERVICE
+  BIBLE_STUDY
+  PRAYER_MEETING
+  YOUTH_SERVICE
+  CHILDREN_SERVICE
+  SPECIAL_EVENT
+  OTHER
+}
+
 model User {
   id                  String         @id @default(uuid())
   clerkId             String?        @unique
@@ -50,8 +60,6 @@ model User {
   refreshToken        String?        // Can be removed if not using refresh tokens with Clerk
   createdEvents       Event[]        @relation("EventCreator")
   managedEvents       EventManager[]
-  attendances         Attendance[]   @relation("UserAttendances")
-  recordedAttendances Attendance[]   @relation("RecordedAttendances")
   tithes              Tithe[]
   notifications       Notification[]
   Group               Group[]
@@ -143,7 +151,6 @@ model Event {
   creatorId        String
   creator          User           @relation("EventCreator", fields: [creatorId], references: [id])
   managers         EventManager[]
-  attendances      Attendance[]
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 }
@@ -160,21 +167,23 @@ model EventManager {
   updatedAt DateTime @updatedAt
 }
 
+
 model Attendance {
-  id           String    @id @default(uuid())
-  eventId      String
-  event        Event     @relation(fields: [eventId], references: [id])
-  memberId     String
-  member       Member    @relation(fields: [memberId], references: [id])
-  checkIn      DateTime  @default(now())
-  checkOut     DateTime?
-  notes        String?
-  recordedById String
-  recordedBy   User      @relation("RecordedAttendances", fields: [recordedById], references: [id])
-  user         User?     @relation("UserAttendances", fields: [userId], references: [id])
-  userId       String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String      @id @default(uuid())
+  memberId    String?     // Make memberId optional
+  member      Member?     @relation(fields: [memberId], references: [id])
+  serviceType ServiceType
+  date        DateTime
+  takenBy     String? 
+  notes       String?
+  isVisitor   Boolean     @default(false)
+  visitorName String?     // For visitors only
+  contact     String?     // For visitors only
+  address     String?     // For visitors only
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([memberId, serviceType, date, isVisitor])
 }
 
 model Tithe {
@@ -185,12 +194,38 @@ model Tithe {
   paymentDate   DateTime @default(now())
   paymentMethod String
   reference     String?
-  category      String
+  paymentType   String
   recordedById  String
   recordedBy    User     @relation(fields: [recordedById], references: [id])
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model Branch {
+  id            String    @id @default(uuid())
+  name          String
+  memberCount   Int       @default(0)
+  income        Float     @default(0)
+  expenditure   Float     @default(0)
+  events        String?
+  currentProject String?
+  address       String
+  description   String?
+  pastor        Pastor?   @relation(fields: [pastorId], references: [id])
+  pastorId      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Pastor {
+  id             String    @id @default(uuid())
+  name           String
+  dateAppointed  DateTime
+  currentStation String
+  branch         Branch[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model ChurchSettings {

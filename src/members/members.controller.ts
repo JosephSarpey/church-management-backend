@@ -41,6 +41,11 @@ export class MembersController {
     return this.membersService.findAll(skip, take);
   }
 
+  @Get('count')
+  async countMembers() {
+    return this.membersService.countMembers();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.membersService.findOne(id);
