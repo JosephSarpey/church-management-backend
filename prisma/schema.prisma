@@ -43,6 +43,22 @@ enum ServiceType {
   OTHER
 }
 
+enum PaymentType {
+  TITHE
+  OFFERING
+  DONATION
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CREDIT_CARD
+  OTHER
+}
+
+
 model User {
   id                  String         @id @default(uuid())
   clerkId             String?        @unique
@@ -60,7 +76,7 @@ model User {
   refreshToken        String?        // Can be removed if not using refresh tokens with Clerk
   createdEvents       Event[]        @relation("EventCreator")
   managedEvents       EventManager[]
-  tithes              Tithe[]
+  
   notifications       Notification[]
   Group               Group[]
   createdMembers      Member[]       @relation("MemberCreator")
@@ -186,20 +202,23 @@ model Attendance {
   @@unique([memberId, serviceType, date, isVisitor])
 }
 
+
 model Tithe {
   id            String   @id @default(uuid())
   memberId      String
   member        Member   @relation(fields: [memberId], references: [id])
   amount        Float
   paymentDate   DateTime @default(now())
-  paymentMethod String
+  paymentMethod PaymentMethod
   reference     String?
-  paymentType   String
-  recordedById  String
-  recordedBy    User     @relation(fields: [recordedById], references: [id])
+  paymentType   PaymentType
+  recordedBy    String
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([memberId])
+  @@index([paymentDate])
 }
 
 model Branch {

@@ -6,6 +6,9 @@ import { UsersModule } from './users/users.module';
 import { MembersModule } from './members/members.module';
 import { SettingsModule } from './settings/settings.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { PastorsModule } from './pastors/pastors.module';
+import { BranchesModule } from './branches/branches.module';
+import { TitheModule } from './tithe/tithe.module';
 
 @Module({
   imports: [
@@ -18,6 +21,9 @@ import { AttendanceModule } from './attendance/attendance.module';
     MembersModule,
     SettingsModule,
     AttendanceModule,
+    PastorsModule,
+    BranchesModule,
+    TitheModule,
   ],
 })
 export class AppModule {}

@@ -6,7 +6,7 @@ import { ClerkModule } from '../clerk/clerk.module';
 
 @Module({
   imports: [
-    ClerkModule, // Import ClerkModule to access ClerkService
+    ClerkModule, 
   ],
   controllers: [AuthController],
   providers: [
