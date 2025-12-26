@@ -1,3 +1,4 @@
+import 'multer';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { v2 as cloudinary } from 'cloudinary';
 import * as stream from 'stream';
