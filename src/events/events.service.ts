@@ -82,7 +82,7 @@ export class EventsService {
     const finalImageUrl = uploadedImageUrls[0] || imageUrl || null;
     
     
-    const data = {
+    const data: Prisma.EventCreateInput = {
       title,
       description,
       location,
@@ -95,7 +95,7 @@ export class EventsService {
       endTime: new Date(endTime),
       imageUrl: finalImageUrl,
       status,
-      ...(groupId && { groupId }), 
+      group: groupId ? { connect: { id: groupId } } : undefined,
     };
     
     const event = await this.prisma.event.create({
@@ -203,6 +203,11 @@ export class EventsService {
         ...updateEventDto,
         updatedAt: new Date(),
       };
+
+      if (updateEventDto.groupId) {
+        updateData.group = { connect: { id: updateEventDto.groupId } };
+        delete (updateData as any).groupId;
+      }
 
       if (imageUrl) {
         updateData.imageUrl = imageUrl;
