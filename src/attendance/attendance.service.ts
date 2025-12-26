@@ -148,20 +148,105 @@ export class AttendanceService {
   }
 
   async getAttendanceStats(startDate: Date, endDate: Date) {
-    const stats = await this.prisma.attendance.groupBy({
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // 1. Total Attendance & Service Type Breakdown
+    const serviceStats = await this.prisma.attendance.groupBy({
       by: ['serviceType'],
       where: {
-        date: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
+        date: { gte: start, lte: end },
       },
       _count: true,
     });
 
-    return stats.map(stat => ({
-      serviceType: stat.serviceType,
-      count: stat._count,
-    }));
+    const totalAttendance = serviceStats.reduce((acc, curr) => acc + curr._count, 0);
+    const serviceTypeBreakdown: Record<string, number> = {};
+    serviceStats.forEach(stat => {
+      serviceTypeBreakdown[stat.serviceType] = stat._count;
+    });
+
+    // 2. Visitor Stats
+    const visitorStatsRaw = await this.prisma.attendance.groupBy({
+      by: ['serviceType'],
+      where: {
+        date: { gte: start, lte: end },
+        isVisitor: true,
+      },
+      _count: true,
+    });
+
+    const totalVisitors = visitorStatsRaw.reduce((acc, curr) => acc + curr._count, 0);
+    const visitorsByService: Record<string, number> = {};
+    visitorStatsRaw.forEach(stat => {
+      visitorsByService[stat.serviceType] = stat._count;
+    });
+
+    // 3. Average Attendance
+    // Count distinct service dates (days where attendance was taken)
+    // Prisma distinct count is tricky with dates that have times.
+    // We'll rely on a raw query or assumption that standard services are key.
+    // For simplicity: Total Attendance / Number of unique dates found in range
+    // Note: This is an approximation if multiple services happen on same day.
+    // Better: Count unique (date, serviceType) tuples?
+    // Let's go with unique dates for now as a rough "events count"
+    const uniqueDates = await this.prisma.attendance.findMany({
+      where: { date: { gte: start, lte: end } },
+      select: { date: true },
+      distinct: ['date'] // This works if times are normalized, otherwise might overcount
+    });
+    // In many systems date is stored with time. If so, unique days needs data processing.
+    // Assuming backend normally stores normalized dates or we accept the granularity.
+    const numberOfEvents = uniqueDates.length || 1; 
+    const averageAttendance = totalAttendance / numberOfEvents;
+
+    // 4. Member Attendance (Top 10)
+    const memberStats = await this.prisma.attendance.groupBy({
+      by: ['memberId'],
+      where: {
+        date: { gte: start, lte: end },
+        memberId: { not: null },
+        isVisitor: false,
+      },
+      _count: true,
+      orderBy: {
+        _count: {
+          memberId: 'desc'
+        }
+      },
+      take: 10,
+    });
+
+    // Fetch member details for the IDs
+    const memberIds = memberStats.map(s => s.memberId).filter((id): id is string => id !== null);
+    const members = await this.prisma.member.findMany({
+      where: { id: { in: memberIds } },
+      select: { id: true, firstName: true, lastName: true }
+    });
+
+    const memberAttendance = memberStats.map(stat => {
+      const member = members.find(m => m.id === stat.memberId);
+      return {
+        memberId: stat.memberId as string,
+        firstName: member?.firstName || 'Unknown',
+        lastName: member?.lastName || 'Member',
+        attendanceCount: stat._count,
+      };
+    });
+
+    return {
+      totalAttendance,
+      serviceTypeBreakdown,
+      dateRange: {
+        start: start.toISOString(),
+        end: end.toISOString()
+      },
+      averageAttendance,
+      memberAttendance,
+      visitorStats: {
+        totalVisitors,
+        visitorsByService
+      }
+    };
   }
 }

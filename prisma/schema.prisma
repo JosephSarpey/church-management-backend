@@ -74,10 +74,9 @@ model User {
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   refreshToken        String?        // Can be removed if not using refresh tokens with Clerk
-  createdEvents       Event[]        @relation("EventCreator")
-  managedEvents       EventManager[]
   
-  notifications       Notification[]
+  
+  notifications       Notification[]  
   Group               Group[]
   createdMembers      Member[]       @relation("MemberCreator")
 
@@ -153,35 +152,33 @@ model GroupMember {
 }
 
 model Event {
-  id               String         @id @default(uuid())
-  title            String
-  description      String?
-  startTime        DateTime
-  endTime          DateTime
-  location         String?
-  type             String
-  isRecurring      Boolean        @default(false)
-  recurringPattern String? // e.g., "WEEKLY", "MONTHLY"
-  groupId          String?
-  group            Group?         @relation(fields: [groupId], references: [id])
-  creatorId        String
-  creator          User           @relation("EventCreator", fields: [creatorId], references: [id])
-  managers         EventManager[]
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                  String         @id @default(uuid())
+  title               String
+  description         String?
+  startTime           DateTime
+  endTime             DateTime
+  location           String?
+  type               ServiceType         // e.g., SERVICE, MEETING, SPECIAL_EVENT
+  isRecurring        Boolean        @default(false)
+  recurringPattern   String?        // e.g., "WEEKLY", "MONTHLY"
+  groupId            String?
+  group              Group?         @relation(fields: [groupId], references: [id])
+  imageUrl          String?       
+  status             String         @default("PUBLISHED") // DRAFT, PUBLISHED, CANCELLED, COMPLETED
+  attendees          Int?
+  maxAttendees       Int?
+  registrationRequired Boolean      @default(false)
+  isActive           Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  
+  @@index([startTime])
+  @@index([status])
+  @@index([type])
 }
 
-model EventManager {
-  id        String   @id @default(uuid())
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id])
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  canEdit   Boolean  @default(false)
-  canDelete Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
+// EventManager model removed - using role-based access control instead
+
 
 
 model Attendance {
@@ -273,6 +270,7 @@ model Notification {
   isRead    Boolean   @default(false)
   link      String?
   type      String // e.g., 'SYSTEM', 'EVENT', 'PAYMENT'
+  metadata  Json?   // flexible field for extra data like { memberId: "..." }
   createdAt DateTime  @default(now())
   readAt    DateTime?
 }

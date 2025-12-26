@@ -9,6 +9,10 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { PastorsModule } from './pastors/pastors.module';
 import { BranchesModule } from './branches/branches.module';
 import { TitheModule } from './tithe/tithe.module';
+import { EventsModule } from './events/events.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -24,6 +28,10 @@ import { TitheModule } from './tithe/tithe.module';
     PastorsModule,
     BranchesModule,
     TitheModule,
+    EventsModule,
+    ScheduleModule.forRoot(),
+    NotificationsModule,
+    CloudinaryModule,
   ],
 })
 export class AppModule {}

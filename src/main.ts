@@ -19,6 +19,10 @@ app.enableCors({
   // Global validation pipe
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
+  // Ensure WebSocket Adapter is used
+  const { IoAdapter } = await import('@nestjs/platform-socket.io');
+  app.useWebSocketAdapter(new IoAdapter(app));
+
   // Swagger configuration
   const config = new DocumentBuilder()
     .setTitle('Church Management API')
@@ -34,7 +38,7 @@ app.enableCors({
     },
   });
 
-  await app.listen(process.env.PORT || 3000);
+  await app.listen(process.env.PORT || 5000);
   console.log(`Application is running on: ${await app.getUrl()}`);
 }
 bootstrap();

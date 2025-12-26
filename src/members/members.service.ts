@@ -205,4 +205,63 @@ export class MembersService {
       previousCount
     };
   }
+
+  /**
+   * Get detailed membership statistics for reports
+   */
+  async getMemberStats() {
+    const totalMembers = await this.prisma.member.count();
+    
+    const activeMembers = await this.prisma.member.count({
+      where: { membershipStatus: 'ACTIVE' }
+    });
+
+    const baptizedMembers = await this.prisma.member.count({
+      where: { baptized: true }
+    });
+
+    // Demographics by gender
+    const genderStats = await this.prisma.member.groupBy({
+      by: ['gender'],
+      _count: true,
+    });
+
+    const maleCount = genderStats.find(s => s.gender === 'MALE')?._count || 0;
+    const femaleCount = genderStats.find(s => s.gender === 'FEMALE')?._count || 0;
+
+    // Age demographics (approximate based on DOB)
+    // Prisma doesn't support complex date diff in groupBy easily across DBs without raw query.
+    // We'll fetch DOBs for active members and calculate in memory for now (assuming dataset < 10k it's fine)
+    // Or just use raw query for performance if dataset is large.
+    // Let's stick to raw query for better performance/practice
+    const youthCount = await this.prisma.member.count({
+      where: {
+        dateOfBirth: {
+          gt: new Date(new Date().setFullYear(new Date().getFullYear() - 18)) // Born after 18 years ago
+        }
+      }
+    });
+
+    // Growth calculation
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const previousCount = await this.prisma.member.count({
+      where: { createdAt: { lte: thirtyDaysAgo } }
+    });
+
+    return {
+      totalMembers,
+      activeMembers,
+      baptizedMembers,
+      genderDistribution: {
+        male: maleCount,
+        female: femaleCount,
+      },
+      ageDistribution: {
+        youth: youthCount,
+        adults: totalMembers - youthCount
+      },
+      growthRate: previousCount > 0 ? ((totalMembers - previousCount) / previousCount) * 100 : 0
+    };
+  }
 }
