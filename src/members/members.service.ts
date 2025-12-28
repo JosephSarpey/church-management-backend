@@ -84,28 +84,53 @@ export class MembersService {
     });
   }
 
-  async findAll(skip = 0, take = 50) {
-    return this.prisma.member.findMany({
-      skip,
-      take,
-      include: { 
-        familyMembers: true, 
-        groups: true,
-        createdBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true
-          }
-        }
-      },
-      orderBy: [
-        {
-          createdAt: 'desc',
+  async findAll(skip = 0, take = 50, search?: string) {
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+        { memberNumber: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.member.findMany({
+        where,
+        skip,
+        take,
+        include: {
+          familyMembers: true,
+          groups: true,
+          createdBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
         },
-      ],
-    });
+        orderBy: [
+          {
+            memberNumber: 'asc',
+          },
+        ],
+      }),
+      this.prisma.member.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        skip,
+        take,
+      },
+    };
   }
 
   async findOne(id: string) {

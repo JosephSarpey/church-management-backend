@@ -77,7 +77,10 @@ export class AttendanceService {
     endDate?: Date,
     memberId?: string,
     serviceType?: string,
+    page = 1,
+    limit = 10,
   ) {
+    const skip = (page - 1) * limit;
     const where: any = {};
 
     if (startDate && endDate) {
@@ -95,15 +98,47 @@ export class AttendanceService {
       where.serviceType = serviceType;
     }
 
-    return this.prisma.attendance.findMany({
-      where,
-      include: {
-        member: true,
-      },
-      orderBy: {
-        date: 'desc',
-      },
+    const [data, total, memberCount, visitorCount, serviceTypeStats] = await Promise.all([
+      this.prisma.attendance.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          member: true,
+        },
+        orderBy: {
+          date: 'desc',
+        },
+      }),
+      this.prisma.attendance.count({ where }),
+      this.prisma.attendance.count({ where: { ...where, isVisitor: false } }),
+      this.prisma.attendance.count({ where: { ...where, isVisitor: true } }),
+      this.prisma.attendance.groupBy({
+        by: ['serviceType'],
+        where,
+        _count: true,
+      }),
+    ]);
+
+    const byServiceType: Record<string, number> = {};
+    serviceTypeStats.forEach(stat => {
+      byServiceType[stat.serviceType] = stat._count;
     });
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        stats: {
+          members: memberCount,
+          visitors: visitorCount,
+          byServiceType,
+        },
+      },
+    };
   }
 
   async findOne(id: string) {

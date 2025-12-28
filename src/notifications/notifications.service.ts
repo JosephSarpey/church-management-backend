@@ -22,17 +22,33 @@ export class NotificationsService {
         link: data.link,
         metadata: data.metadata,
       },
+      include: {
+        user: {
+          select: { clerkId: true }
+        }
+      }
     });
 
-    // Real-time emit
-    this.notificationsGateway.sendToUser(data.userId, notification);
+    // Real-time emit using clerkId if available, fallback to userId
+    const emitId = notification.user?.clerkId || data.userId;
+    this.notificationsGateway.sendToUser(emitId, notification);
 
     return notification;
   }
 
   async findAll(userId: string) {
+    // Check if userId is a Clerk ID (starts with 'user_')
+    let internalUserId = userId;
+    if (userId.startsWith('user_')) {
+      const user = await this.prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { id: true }
+      });
+      if (user) internalUserId = user.id;
+    }
+
     return this.prisma.notification.findMany({
-      where: { userId },
+      where: { userId: internalUserId },
       orderBy: { createdAt: 'desc' },
       take: 50, // Limit to last 50
     });
@@ -46,8 +62,18 @@ export class NotificationsService {
   }
 
   async markAllAsRead(userId: string) {
+    // Check if userId is a Clerk ID (starts with 'user_')
+    let internalUserId = userId;
+    if (userId.startsWith('user_')) {
+      const user = await this.prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { id: true }
+      });
+      if (user) internalUserId = user.id;
+    }
+
     return this.prisma.notification.updateMany({
-      where: { userId, isRead: false },
+      where: { userId: internalUserId, isRead: false },
       data: { isRead: true, readAt: new Date() },
     });
   }
@@ -61,12 +87,6 @@ export class NotificationsService {
     const currentMonth = today.getMonth() + 1; // getMonth() is 0-indexed
     const currentDay = today.getDate();
 
-    // Prisma doesn't have great date part filtering, so we might need raw query or fetch and filter.
-    // Optimizing with raw query is better for performance if many members.
-    // However, sticking to prisma syntax for safety; if small db, fetch all acceptable. 
-    // Let's use raw query for exact day/month match to support leap years/etc correctly usually, 
-    // but a simple filter on all members might be heavy.
-    // Let's try to filter using Prisma's date functions if possible, or fetch all active members and filter in code (simplest for now).
     
     // Fetch all active members
     const members = await this.prisma.member.findMany({

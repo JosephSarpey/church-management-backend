@@ -23,6 +23,8 @@ type EventWithRelations = Prisma.EventGetPayload<{
 
 @Injectable()
 export class EventsService {
+  private readonly RECURRENCE_DAYS = 30; // Default lookahead for recurring events
+
   constructor(
     private prisma: PrismaService,
     private cloudinaryService: CloudinaryService,
@@ -109,6 +111,85 @@ export class EventsService {
     return event as unknown as EventWithRelations;
   }
 
+  public expandRecurringEvents(
+    events: EventWithRelations[],
+    startDate: Date,
+    endDate: Date,
+    limitPerEvent: number = Infinity,
+  ): EventWithRelations[] {
+    const expandedEvents: EventWithRelations[] = [];
+
+    for (const event of events) {
+      let occurrenceCount = 0;
+
+      // Add the original event if it falls within the range
+      if (
+        new Date(event.startTime) >= startDate &&
+        new Date(event.startTime) <= endDate
+      ) {
+        expandedEvents.push(event);
+        occurrenceCount++;
+      }
+
+      if (!event.isRecurring || !event.recurringPattern || occurrenceCount >= limitPerEvent) {
+        continue;
+      }
+
+      const pattern = event.recurringPattern.toUpperCase();
+      let currentStartTime = new Date(event.startTime);
+      let currentEndTime = new Date(event.endTime);
+      const duration = currentEndTime.getTime() - currentStartTime.getTime();
+
+      // Find the first occurrence after the original start time that might fall in our range
+      // but we start from the original and skip until we hit the range or exceed endDate
+      while (currentStartTime <= endDate) {
+        // Move to next occurrence based on pattern
+        switch (pattern) {
+          case 'DAILY':
+            currentStartTime.setDate(currentStartTime.getDate() + 1);
+            break;
+          case 'WEEKLY':
+            currentStartTime.setDate(currentStartTime.getDate() + 7);
+            break;
+          case 'MONTHLY':
+            currentStartTime.setMonth(currentStartTime.getMonth() + 1);
+            break;
+          case 'YEARLY':
+            currentStartTime.setFullYear(currentStartTime.getFullYear() + 1);
+            break;
+          default:
+            // Break loop for unknown patterns
+            currentStartTime = new Date(endDate.getTime() + 1);
+            continue;
+        }
+
+        currentEndTime = new Date(currentStartTime.getTime() + duration);
+
+        // Check if this new occurrence falls within the requested range
+        if (currentStartTime >= startDate && currentStartTime <= endDate) {
+          // Create a "virtual" event for this occurrence
+          const occurrenceId = `occ:${event.id}:${currentStartTime.getTime()}`;
+          expandedEvents.push({
+            ...event,
+            id: occurrenceId,
+            startTime: new Date(currentStartTime),
+            endTime: new Date(currentEndTime),
+          } as EventWithRelations);
+          
+          occurrenceCount++;
+          if (occurrenceCount >= limitPerEvent) {
+            break;
+          }
+        }
+      }
+    }
+
+    // Sort expanded events by start time
+    return expandedEvents.sort(
+      (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+    );
+  }
+
   async findAll(params: {
     skip?: number;
     take?: number;
@@ -161,8 +242,20 @@ export class EventsService {
   }
 
   async findOne(id: string): Promise<EventWithRelations> {
+    let actualId = id;
+    let virtualStartTime: Date | null = null;
+
+    // Handle virtual occurrence IDs: occ:masterId:timestamp
+    if (id.startsWith('occ:')) {
+      const parts = id.split(':');
+      if (parts.length === 3) {
+        actualId = parts[1];
+        virtualStartTime = new Date(parseInt(parts[2], 10));
+      }
+    }
+
     const event = await this.prisma.event.findUnique({
-      where: { id },
+      where: { id: actualId },
       include: {
         group: true
       },
@@ -172,7 +265,22 @@ export class EventsService {
       throw new NotFoundException(`Event with ID ${id} not found`);
     }
 
-    return event as unknown as EventWithRelations;
+    const eventWithRelations = event as unknown as EventWithRelations;
+
+    // If it's a virtual occurrence, adjust the times
+    if (virtualStartTime) {
+      const duration = 
+        new Date(event.endTime).getTime() - new Date(event.startTime).getTime();
+      
+      return {
+        ...eventWithRelations,
+        id: id, // Keep the virtual ID
+        startTime: virtualStartTime,
+        endTime: new Date(virtualStartTime.getTime() + duration),
+      };
+    }
+
+    return eventWithRelations;
   }
 
   async update(

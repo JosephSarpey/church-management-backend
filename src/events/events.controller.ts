@@ -86,6 +86,11 @@ export class EventsController {
       this.eventsService.count(where),
     ]);
 
+    // Note: Expansion in paginated list is complex. 
+    // For now, we only expand in findUpcoming or when specifically requested.
+    // If we wanted to expand here, we would need to do it AFTER fetching, 
+    // which might break pagination consistency.
+
     return {
       data: events,
       total,
@@ -98,17 +103,32 @@ export class EventsController {
   @Get('upcoming')
   @ApiOperation({ summary: 'Get upcoming events' })
   @ApiResponse({ status: 200, description: 'Return upcoming events.' })
-  findUpcoming() {
-    return this.eventsService.findAll({
+  async findUpcoming() {
+    const now = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(now.getDate() + 30);
+
+    // Fetch all events that are either upcoming OR recurring
+    const events = await this.eventsService.findAll({
       where: {
-        AND: [
-          { startTime: { gte: new Date() } },
-          { status: 'PUBLISHED' as const }
-        ]
+        OR: [
+          { startTime: { gte: now } },
+          { isRecurring: true }
+        ],
+        status: 'PUBLISHED' as const,
+        isActive: true,
       } as Prisma.EventWhereInput,
       orderBy: { startTime: 'asc' },
-      take: 10,
+      take: 50, // Fetch more to allow for expansion
     });
+
+    // expansion logic is handled in the service but we need to call it here 
+    // wait, I put expansion logic as private in service. I should make it accessible or use it inside a service method.
+    // Let's refactor the service slightly to expose an expanded search or just do it in findUpcoming inside service.
+    // Actually, I'll move the logic into a public service method.
+    
+    // For now, I'll modify the service to have a public expansion method.
+    return this.eventsService.expandRecurringEvents(events, now, thirtyDaysFromNow, 1).slice(0, 10);
   }
 
   @Get(':id')

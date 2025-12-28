@@ -45,20 +45,40 @@ export class TitheService {
     return this.mapToDto(tithe);
   }
 
-  async findAll(where?: Prisma.TitheWhereInput): Promise<TitheResponseDto[]> {
-    const tithes = await this.prisma.tithe.findMany({
-      where,
-      orderBy: { paymentDate: 'desc' },
-      include: {
-        member: {
-          select: {
-            firstName: true,
-            lastName: true,
+  async findAll(
+    where?: Prisma.TitheWhereInput,
+    page = 1,
+    limit = 10,
+  ) {
+    const skip = (page - 1) * limit;
+
+    const [tithes, total] = await Promise.all([
+      this.prisma.tithe.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { paymentDate: 'desc' },
+        include: {
+          member: {
+            select: {
+              firstName: true,
+              lastName: true,
+            }
           }
         }
-      }
-    });
-    return tithes.map(tithe => this.mapToDto(tithe));
+      }),
+      this.prisma.tithe.count({ where }),
+    ]);
+
+    return {
+      data: tithes.map(tithe => this.mapToDto(tithe)),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: string): Promise<TitheResponseDto> {

@@ -37,8 +37,9 @@ export class MembersController {
   findAll(
     @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip: number,
     @Query('take', new DefaultValuePipe(50), ParseIntPipe) take: number,
+    @Query('search') search?: string,
   ) {
-    return this.membersService.findAll(skip, take);
+    return this.membersService.findAll(skip, take, search);
   }
 
   @Get('count')

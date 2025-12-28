@@ -53,12 +53,16 @@ export class AttendanceController {
     enum: $Enums.ServiceType,
     description: 'Filter by service type'
   })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
   @ApiResponse({ status: 200, description: 'Return all attendance records' })
   async findAll(
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
     @Query('memberId') memberId?: string,
     @Query('serviceType') serviceType?: $Enums.ServiceType,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     let startDate: Date | undefined;
     let endDate: Date | undefined;
@@ -85,6 +89,8 @@ export class AttendanceController {
       endDate,
       memberId,
       serviceType,
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 10,
     );
   }
 

@@ -13,6 +13,7 @@ import { EventsModule } from './events/events.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ClerkModule } from './clerk/clerk.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     ScheduleModule.forRoot(),
     NotificationsModule,
     CloudinaryModule,
+    ClerkModule,
   ],
 })
 export class AppModule {}

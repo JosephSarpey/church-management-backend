@@ -19,27 +19,48 @@ export class TitheController {
     return this.titheService.create(createTitheDto);
   }
 
-  @Get()
-  @ApiOperation({ summary: 'Get all tithe records' })
-  @ApiResponse({ status: 200, description: 'Return all tithe records.', type: [TitheResponseDto] })
+  @ApiQuery({ name: 'search', required: false, description: 'Search by member name' })
   @ApiQuery({ name: 'memberId', required: false, description: 'Filter tithes by member ID' })
   @ApiQuery({ name: 'startDate', required: false, description: 'Filter tithes from this date (ISO string)' })
   @ApiQuery({ name: 'endDate', required: false, description: 'Filter tithes until this date (ISO string)' })
+  @ApiQuery({ name: 'paymentMethod', required: false, description: 'Filter by payment method' })
+  @ApiQuery({ name: 'paymentType', required: false, description: 'Filter by payment type' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 10)' })
+  @Get()
+  @ApiOperation({ summary: 'Get all tithe records' })
+  @ApiResponse({ status: 200, description: 'Return all tithe records.', type: [TitheResponseDto] })
   async findAll(
+    @Query('search') search?: string,
     @Query('memberId') memberId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-  ): Promise<TitheResponseDto[]> {
-    // If no filters, return all
-    if (!memberId && !startDate && !endDate) {
-      return this.titheService.findAll();
-    }
-
-    // Build filter
+    @Query('paymentMethod') paymentMethod?: string,
+    @Query('paymentType') paymentType?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ): Promise<any> {
     const where: any = {};
     
+    if (search) {
+      where.member = {
+        OR: [
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+        ],
+      };
+    }
+
     if (memberId) {
       where.memberId = memberId;
+    }
+
+    if (paymentMethod) {
+      where.paymentMethod = paymentMethod;
+    }
+
+    if (paymentType) {
+      where.paymentType = paymentType;
     }
     
     if (startDate || endDate) {
@@ -48,7 +69,7 @@ export class TitheController {
       if (endDate) where.paymentDate.lte = new Date(endDate);
     }
 
-    return this.titheService.findAll(where);
+    return this.titheService.findAll(where, page ? +page : 1, limit ? +limit : 10);
   }
 
   @Get(':id')

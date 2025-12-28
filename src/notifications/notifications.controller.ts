@@ -8,7 +8,9 @@ export class NotificationsController {
 
   // @UseGuards(JwtAuthGuard) // Enable this when ready
   @Get(':userId')
-  findAll(@Param('userId') userId: string) {
+  findAll(@Param('userId') userId: string, @Req() req: any) {
+    // If we're using Clerk auth, we should ideally get the ID from the token
+    // but the frontend passes it as a param too.
     return this.notificationsService.findAll(userId);
   }
 
