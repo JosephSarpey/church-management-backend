@@ -15,7 +15,10 @@ import {
   Req,
   UseInterceptors,
   UploadedFiles,
+  Inject,
 } from '@nestjs/common';
+import { CacheInterceptor, CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -33,6 +36,7 @@ export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
     private readonly clerkService: ClerkService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
   @Post()
@@ -51,9 +55,11 @@ export class EventsController {
     }
     
 
-    return this.eventsService.create({
+    const result = await this.eventsService.create({
       ...createEventDto,
     }, files);
+    await this.cacheManager.clear();
+    return result;
   }
 
   @Get()
@@ -63,6 +69,7 @@ export class EventsController {
   @ApiQuery({ name: 'status', required: false, type: String })
   @ApiQuery({ name: 'type', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Return all events.' })
+  @UseInterceptors(CacheInterceptor)
   async findAll(
     @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip: number,
     @Query('take', new DefaultValuePipe(10), ParseIntPipe) take: number,
@@ -103,6 +110,7 @@ export class EventsController {
   @Get('upcoming')
   @ApiOperation({ summary: 'Get upcoming events' })
   @ApiResponse({ status: 200, description: 'Return upcoming events.' })
+  @UseInterceptors(CacheInterceptor)
   async findUpcoming() {
     const now = new Date();
     const thirtyDaysFromNow = new Date();
@@ -135,6 +143,7 @@ export class EventsController {
   @ApiOperation({ summary: 'Get an event by ID' })
   @ApiResponse({ status: 200, description: 'Return the event.' })
   @ApiResponse({ status: 404, description: 'Event not found.' })
+  @UseInterceptors(CacheInterceptor)
   findOne(@Param('id') id: string) {
     return this.eventsService.findOne(id);
   }
@@ -159,7 +168,9 @@ export class EventsController {
       throw new BadRequestException('End time must be after start time');
     }
 
-    return this.eventsService.update(id, updateEventDto, files);
+    const result = await this.eventsService.update(id, updateEventDto, files);
+    await this.cacheManager.clear();
+    return result;
   }
 
   @Delete(':id')
@@ -172,6 +183,8 @@ export class EventsController {
     @Param('id') id: string,
     @Req() req: Request
   ) {
-    return this.eventsService.remove(id);
+    const result = await this.eventsService.remove(id);
+    await this.cacheManager.clear();
+    return result;
   }
 }

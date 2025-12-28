@@ -11,7 +11,11 @@ import {
   DefaultValuePipe,
   UsePipes,
   ValidationPipe,
+  UseInterceptors,
 } from '@nestjs/common';
+import { CacheInterceptor, CacheKey, CacheTTL, CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+import { Inject } from '@nestjs/common';
 import { MembersService } from './members.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
@@ -24,16 +28,22 @@ export class MembersController {
   constructor(
     private readonly membersService: MembersService,
     private readonly clerkService: ClerkService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
   @Post()
-  create(@Body() dto: CreateMemberDto, @Req() req: Request) {
+  async create(@Body() dto: CreateMemberDto, @Req() req: Request) {
     // prefer ClerkService extraction so client can't spoof createdById
     const actorId = this.clerkService.getUserIdFromRequest(req);
-    return this.membersService.create({ ...dto, createdById: actorId });
+    const result = await this.membersService.create({ ...dto, createdById: actorId });
+    await this.cacheManager.clear(); // Invalidate all cache on mutation for simplicity
+    return result;
   }
 
   @Get()
+  @UseInterceptors(CacheInterceptor)
+  @CacheKey('all_members')
+  @CacheTTL(600) // 10 minutes
   findAll(
     @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip: number,
     @Query('take', new DefaultValuePipe(50), ParseIntPipe) take: number,
@@ -43,11 +53,17 @@ export class MembersController {
   }
 
   @Get('count')
+  @UseInterceptors(CacheInterceptor)
+  @CacheKey('members_count')
+  @CacheTTL(3600) // 1 hour
   async countMembers() {
     return this.membersService.countMembers();
   }
 
   @Get('stats')
+  @UseInterceptors(CacheInterceptor)
+  @CacheKey('members_stats')
+  @CacheTTL(3600) // 1 hour
   async getMemberStats() {
     return this.membersService.getMemberStats();
   }
@@ -59,12 +75,16 @@ export class MembersController {
 
   @Put(':id')
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  update(@Param('id') id: string, @Body() dto: UpdateMemberDto) {
-    return this.membersService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: UpdateMemberDto) {
+    const result = await this.membersService.update(id, dto);
+    await this.cacheManager.clear();
+    return result;
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.membersService.remove(id);
+  async remove(@Param('id') id: string) {
+    const result = await this.membersService.remove(id);
+    await this.cacheManager.clear();
+    return result;
   }
 }

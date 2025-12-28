@@ -8,7 +8,11 @@ import {
   Query,
   ParseUUIDPipe,
   BadRequestException,
+  UseInterceptors,
+  Inject,
 } from '@nestjs/common';
+import { CacheInterceptor, CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
@@ -18,7 +22,10 @@ import { $Enums } from '@prisma/client';
 @ApiTags('attendance')
 @Controller('attendance')
 export class AttendanceController {
-  constructor(private readonly attendanceService: AttendanceService) {}
+  constructor(
+    private readonly attendanceService: AttendanceService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Mark attendance for a member' })
@@ -26,8 +33,10 @@ export class AttendanceController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 404, description: 'Member not found' })
   @ApiResponse({ status: 409, description: 'Attendance already marked for this member and service type today' })
-  create(@Body() createAttendanceDto: CreateAttendanceDto) {
-    return this.attendanceService.markAttendance(createAttendanceDto);
+  async create(@Body() createAttendanceDto: CreateAttendanceDto) {
+    const result = await this.attendanceService.markAttendance(createAttendanceDto);
+    await this.cacheManager.clear();
+    return result;
   }
 
   @Get()
@@ -56,6 +65,7 @@ export class AttendanceController {
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
   @ApiResponse({ status: 200, description: 'Return all attendance records' })
+  @UseInterceptors(CacheInterceptor)
   async findAll(
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
@@ -107,6 +117,7 @@ export class AttendanceController {
     description: 'End date in ISO 8601 format (e.g., 2023-10-31 or 2023-10-31T23:59:59Z)'
   })
   @ApiResponse({ status: 200, description: 'Return attendance statistics' })
+  @UseInterceptors(CacheInterceptor)
   async getStats(
     @Query('startDate') startDateStr: string,
     @Query('endDate') endDateStr: string,
@@ -140,18 +151,22 @@ export class AttendanceController {
   @ApiOperation({ summary: 'Delete an attendance record' })
   @ApiResponse({ status: 200, description: 'Attendance record deleted' })
   @ApiResponse({ status: 404, description: 'Attendance record not found' })
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.attendanceService.remove(id);
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
+    const result = await this.attendanceService.remove(id);
+    await this.cacheManager.clear();
+    return result;
   }
 
   @Post(':id')
   @ApiOperation({ summary: 'Update an attendance record' })
   @ApiResponse({ status: 200, description: 'Attendance record updated' })
   @ApiResponse({ status: 404, description: 'Attendance record not found' })
-  update(
+  async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateAttendanceDto: UpdateAttendanceDto,
   ) {
-    return this.attendanceService.update(id, updateAttendanceDto);
+    const result = await this.attendanceService.update(id, updateAttendanceDto);
+    await this.cacheManager.clear();
+    return result;
   }
 }
